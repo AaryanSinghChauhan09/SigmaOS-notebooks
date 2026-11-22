@@ -24,7 +24,7 @@ impl fmt::Display for NotebookError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidJson(m) => write!(f, "invalid JSON: {m}"),
-            Self::MissingField(f2) => write!(f2, "missing field: {}", f2),
+            Self::MissingField(name) => write!(f, "missing field: {}", name),
             Self::MalformedCell(m) => write!(f, "malformed cell: {m}"),
         }
     }
@@ -278,10 +278,10 @@ mod tests {
 
     #[test]
     fn parses_minimal_notebook() {
-        let json = r#"{"nbformat":4,"nbformat_minor":5,"cells":[
+        let json = r##"{"nbformat":4,"nbformat_minor":5,"cells":[
             {"cell_type":"markdown","source":["# Title\n","text"]},
             {"cell_type":"code","execution_count":1,"source":"print(1)","outputs":[]}
-        ]}"#;
+        ]}"##;
         let nb = parse_notebook(json).unwrap();
         assert_eq!(nb.nbformat, 4);
         assert_eq!(nb.cells.len(), 2);
