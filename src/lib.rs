@@ -96,7 +96,7 @@ impl Notebook {
 
 /// Minimal JSON value for dependency-free parsing.
 #[derive(Debug, Clone)]
-enum Json {
+pub enum Json {
     Null,
     Bool(bool),
     Num(f64),
