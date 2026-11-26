@@ -80,12 +80,17 @@ impl Notebook {
 
     /// All code concatenated (for export/lint).
     pub fn code_source(&self) -> String {
+        self.source_of(CellType::Code)
+    }
+
+    /// All cells of one type concatenated with blank-line separators.
+    pub fn source_of(&self, cell_type: CellType) -> String {
         self.cells
             .iter()
-            .filter(|c| c.cell_type == CellType::Code)
+            .filter(|c| c.cell_type == cell_type)
             .map(|c| c.source.as_str())
             .collect::<Vec<_>>()
-            .join("\n")
+            .join("\n\n")
     }
 
     /// Total lines across all cells.
@@ -402,5 +407,27 @@ mod tests {
     fn rejects_invalid() {
         assert!(parse_notebook("not json").is_err());
         assert!(parse_notebook("{}").is_err());
+    }
+
+    #[test]
+    fn source_of_separates_cells() {
+        let json = r##"{"nbformat":4,"nbformat_minor":5,"cells":[
+            {"cell_type":"code","source":"a=1"},
+            {"cell_type":"markdown","source":"# Hi"},
+            {"cell_type":"code","source":"b=2"}
+        ]}"##;
+        let nb = parse_notebook(json).unwrap();
+        assert_eq!(nb.code_source(), "a=1\n\nb=2");
+        assert_eq!(nb.source_of(CellType::Markdown), "# Hi");
+        assert_eq!(nb.source_of(CellType::Raw), "");
+    }
+
+    #[test]
+    fn parses_escapes_and_unicode() {
+        let json = r##"{"nbformat":4,"nbformat_minor":5,"cells":[
+            {"cell_type":"code","source":"s=\"a\nb\té\""}
+        ]}"##;
+        let nb = parse_notebook(json).unwrap();
+        assert_eq!(nb.code_source(), "s=\"a\nb\té\"");
     }
 }
