@@ -34,7 +34,11 @@ impl std::error::Error for NotebookError {}
 
 /// Notebook cell kinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CellType { Code, Markdown, Raw }
+pub enum CellType {
+    Code,
+    Markdown,
+    Raw,
+}
 
 /// A single notebook cell.
 #[derive(Debug, Clone)]
@@ -61,7 +65,9 @@ pub struct Notebook {
 impl Notebook {
     /// Count cells by type.
     pub fn counts(&self) -> (usize, usize, usize) {
-        let mut code = 0; let mut md = 0; let mut raw = 0;
+        let mut code = 0;
+        let mut md = 0;
+        let mut raw = 0;
         for c in &self.cells {
             match c.cell_type {
                 CellType::Code => code += 1,
@@ -74,7 +80,8 @@ impl Notebook {
 
     /// All code concatenated (for export/lint).
     pub fn code_source(&self) -> String {
-        self.cells.iter()
+        self.cells
+            .iter()
             .filter(|c| c.cell_type == CellType::Code)
             .map(|c| c.source.as_str())
             .collect::<Vec<_>>()
@@ -102,22 +109,39 @@ impl Json {
     fn get(&self, key: &str) -> Option<&Json> {
         if let Json::Obj(pairs) = self {
             pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v)
-        } else { None }
+        } else {
+            None
+        }
     }
     fn as_str(&self) -> Option<&str> {
-        if let Json::Str(s) = self { Some(s) } else { None }
+        if let Json::Str(s) = self {
+            Some(s)
+        } else {
+            None
+        }
     }
     fn as_num(&self) -> Option<f64> {
-        if let Json::Num(n) = self { Some(*n) } else { None }
+        if let Json::Num(n) = self {
+            Some(*n)
+        } else {
+            None
+        }
     }
     fn as_arr(&self) -> Option<&[Json]> {
-        if let Json::Arr(a) = self { Some(a) } else { None }
+        if let Json::Arr(a) = self {
+            Some(a)
+        } else {
+            None
+        }
     }
 }
 
 /// Parse JSON text into our minimal Json value.
 pub fn parse_json(input: &str) -> Result<Json, NotebookError> {
-    let mut p = JsonParser { s: input.as_bytes(), i: 0 };
+    let mut p = JsonParser {
+        s: input.as_bytes(),
+        i: 0,
+    };
     p.skip_ws();
     let v = p.value()?;
     p.skip_ws();
@@ -127,47 +151,77 @@ pub fn parse_json(input: &str) -> Result<Json, NotebookError> {
     Ok(v)
 }
 
-struct JsonParser<'a> { s: &'a [u8], i: usize }
+struct JsonParser<'a> {
+    s: &'a [u8],
+    i: usize,
+}
 
 impl<'a> JsonParser<'a> {
     fn skip_ws(&mut self) {
-        while self.i < self.s.len() && matches!(self.s[self.i], b' ' | b'\t' | b'\n' | b'\r') { self.i += 1; }
+        while self.i < self.s.len() && matches!(self.s[self.i], b' ' | b'\t' | b'\n' | b'\r') {
+            self.i += 1;
+        }
     }
-    fn peek(&self) -> Option<u8> { self.s.get(self.i).copied() }
+    fn peek(&self) -> Option<u8> {
+        self.s.get(self.i).copied()
+    }
     fn value(&mut self) -> Result<Json, NotebookError> {
         self.skip_ws();
         match self.peek() {
             Some(b'{') => self.object(),
             Some(b'[') => self.array(),
             Some(b'"') => Ok(Json::Str(self.string()?)),
-            Some(b't') => { self.lit("true")?; Ok(Json::Bool(true)) }
-            Some(b'f') => { self.lit("false")?; Ok(Json::Bool(false)) }
-            Some(b'n') => { self.lit("null")?; Ok(Json::Null) }
+            Some(b't') => {
+                self.lit("true")?;
+                Ok(Json::Bool(true))
+            }
+            Some(b'f') => {
+                self.lit("false")?;
+                Ok(Json::Bool(false))
+            }
+            Some(b'n') => {
+                self.lit("null")?;
+                Ok(Json::Null)
+            }
             Some(c) if c == b'-' || c.is_ascii_digit() => self.number(),
             _ => Err(NotebookError::InvalidJson(format!("at byte {}", self.i))),
         }
     }
     fn lit(&mut self, w: &str) -> Result<(), NotebookError> {
-        if self.s[self.i..].starts_with(w.as_bytes()) { self.i += w.len(); Ok(()) }
-        else { Err(NotebookError::InvalidJson("bad literal".into())) }
+        if self.s[self.i..].starts_with(w.as_bytes()) {
+            self.i += w.len();
+            Ok(())
+        } else {
+            Err(NotebookError::InvalidJson("bad literal".into()))
+        }
     }
     fn object(&mut self) -> Result<Json, NotebookError> {
         self.i += 1; // {
         let mut pairs = Vec::new();
         self.skip_ws();
-        if self.peek() == Some(b'}') { self.i += 1; return Ok(Json::Obj(pairs)); }
+        if self.peek() == Some(b'}') {
+            self.i += 1;
+            return Ok(Json::Obj(pairs));
+        }
         loop {
             self.skip_ws();
             let key = self.string()?;
             self.skip_ws();
-            if self.peek() != Some(b':') { return Err(NotebookError::InvalidJson("expected ':'".into())); }
+            if self.peek() != Some(b':') {
+                return Err(NotebookError::InvalidJson("expected ':'".into()));
+            }
             self.i += 1;
             let v = self.value()?;
             pairs.push((key, v));
             self.skip_ws();
             match self.peek() {
-                Some(b',') => { self.i += 1; }
-                Some(b'}') => { self.i += 1; break; }
+                Some(b',') => {
+                    self.i += 1;
+                }
+                Some(b'}') => {
+                    self.i += 1;
+                    break;
+                }
                 _ => return Err(NotebookError::InvalidJson("expected ',' or '}'".into())),
             }
         }
@@ -177,20 +231,30 @@ impl<'a> JsonParser<'a> {
         self.i += 1; // [
         let mut items = Vec::new();
         self.skip_ws();
-        if self.peek() == Some(b']') { self.i += 1; return Ok(Json::Arr(items)); }
+        if self.peek() == Some(b']') {
+            self.i += 1;
+            return Ok(Json::Arr(items));
+        }
         loop {
             items.push(self.value()?);
             self.skip_ws();
             match self.peek() {
-                Some(b',') => { self.i += 1; }
-                Some(b']') => { self.i += 1; break; }
+                Some(b',') => {
+                    self.i += 1;
+                }
+                Some(b']') => {
+                    self.i += 1;
+                    break;
+                }
                 _ => return Err(NotebookError::InvalidJson("expected ',' or ']'".into())),
             }
         }
         Ok(Json::Arr(items))
     }
     fn string(&mut self) -> Result<String, NotebookError> {
-        if self.peek() != Some(b'"') { return Err(NotebookError::InvalidJson("expected string".into())); }
+        if self.peek() != Some(b'"') {
+            return Err(NotebookError::InvalidJson("expected string".into()));
+        }
         self.i += 1;
         let mut out = String::new();
         while let Some(c) = self.peek() {
@@ -198,7 +262,9 @@ impl<'a> JsonParser<'a> {
             match c {
                 b'"' => return Ok(out),
                 b'\\' => {
-                    let e = self.peek().ok_or_else(|| NotebookError::InvalidJson("bad escape".into()))?;
+                    let e = self
+                        .peek()
+                        .ok_or_else(|| NotebookError::InvalidJson("bad escape".into()))?;
                     self.i += 1;
                     match e {
                         b'n' => out.push('\n'),
@@ -208,9 +274,13 @@ impl<'a> JsonParser<'a> {
                         b'\\' => out.push('\\'),
                         b'/' => out.push('/'),
                         b'u' => {
-                            if self.i + 4 > self.s.len() { return Err(NotebookError::InvalidJson("bad \\u".into())); }
-                            let hex = std::str::from_utf8(&self.s[self.i..self.i+4]).map_err(|_| NotebookError::InvalidJson("bad \\u".into()))?;
-                            let cp = u32::from_str_radix(hex, 16).map_err(|_| NotebookError::InvalidJson("bad \\u".into()))?;
+                            if self.i + 4 > self.s.len() {
+                                return Err(NotebookError::InvalidJson("bad \\u".into()));
+                            }
+                            let hex = std::str::from_utf8(&self.s[self.i..self.i + 4])
+                                .map_err(|_| NotebookError::InvalidJson("bad \\u".into()))?;
+                            let cp = u32::from_str_radix(hex, 16)
+                                .map_err(|_| NotebookError::InvalidJson("bad \\u".into()))?;
                             self.i += 4;
                             out.push(char::from_u32(cp).unwrap_or('\u{FFFD}'));
                         }
@@ -222,7 +292,9 @@ impl<'a> JsonParser<'a> {
                     let start = self.i - 1;
                     let len = utf8_len(c);
                     let end = (start + len).min(self.s.len());
-                    if let Ok(s) = std::str::from_utf8(&self.s[start..end]) { out.push_str(s); }
+                    if let Ok(s) = std::str::from_utf8(&self.s[start..end]) {
+                        out.push_str(s);
+                    }
                     self.i = end;
                 }
             }
@@ -231,24 +303,47 @@ impl<'a> JsonParser<'a> {
     }
     fn number(&mut self) -> Result<Json, NotebookError> {
         let start = self.i;
-        if self.peek() == Some(b'-') { self.i += 1; }
-        while matches!(self.peek(), Some(c) if c.is_ascii_digit() || c == b'.' || c == b'e' || c == b'E' || c == b'+' || c == b'-') { self.i += 1; }
-        let s = std::str::from_utf8(&self.s[start..self.i]).map_err(|_| NotebookError::InvalidJson("bad number".into()))?;
-        s.parse::<f64>().map(Json::Num).map_err(|_| NotebookError::InvalidJson("bad number".into()))
+        if self.peek() == Some(b'-') {
+            self.i += 1;
+        }
+        while matches!(self.peek(), Some(c) if c.is_ascii_digit() || c == b'.' || c == b'e' || c == b'E' || c == b'+' || c == b'-')
+        {
+            self.i += 1;
+        }
+        let s = std::str::from_utf8(&self.s[start..self.i])
+            .map_err(|_| NotebookError::InvalidJson("bad number".into()))?;
+        s.parse::<f64>()
+            .map(Json::Num)
+            .map_err(|_| NotebookError::InvalidJson("bad number".into()))
     }
 }
 
 fn utf8_len(b: u8) -> usize {
-    if b < 0x80 { 1 } else if b >> 5 == 0b110 { 2 } else if b >> 4 == 0b1110 { 3 } else { 4 }
+    if b < 0x80 {
+        1
+    } else if b >> 5 == 0b110 {
+        2
+    } else if b >> 4 == 0b1110 {
+        3
+    } else {
+        4
+    }
 }
 
 /// Parse an .ipynb file's JSON into a Notebook.
 pub fn parse_notebook(json_text: &str) -> Result<Notebook, NotebookError> {
     let root = parse_json(json_text)?;
-    let nbformat = root.get("nbformat").and_then(Json::as_num)
+    let nbformat = root
+        .get("nbformat")
+        .and_then(Json::as_num)
         .ok_or(NotebookError::MissingField("nbformat"))? as u32;
-    let nbformat_minor = root.get("nbformat_minor").and_then(Json::as_num).unwrap_or(0.0) as u32;
-    let cells_json = root.get("cells").and_then(Json::as_arr)
+    let nbformat_minor = root
+        .get("nbformat_minor")
+        .and_then(Json::as_num)
+        .unwrap_or(0.0) as u32;
+    let cells_json = root
+        .get("cells")
+        .and_then(Json::as_arr)
         .ok_or(NotebookError::MissingField("cells"))?;
     let mut cells = Vec::new();
     for cj in cells_json {
@@ -262,14 +357,28 @@ pub fn parse_notebook(json_text: &str) -> Result<Notebook, NotebookError> {
         // source is string or array of strings
         let source = match cj.get("source") {
             Some(Json::Str(s)) => s.clone(),
-            Some(Json::Arr(parts)) => parts.iter()
-                .filter_map(Json::as_str).collect::<Vec<_>>().join(""),
+            Some(Json::Arr(parts)) => parts
+                .iter()
+                .filter_map(Json::as_str)
+                .collect::<Vec<_>>()
+                .join(""),
             _ => String::new(),
         };
-        let execution_count = cj.get("execution_count").and_then(Json::as_num).map(|n| n as u64);
-        cells.push(Cell { cell_type, source, execution_count });
+        let execution_count = cj
+            .get("execution_count")
+            .and_then(Json::as_num)
+            .map(|n| n as u64);
+        cells.push(Cell {
+            cell_type,
+            source,
+            execution_count,
+        });
     }
-    Ok(Notebook { nbformat, nbformat_minor, cells })
+    Ok(Notebook {
+        nbformat,
+        nbformat_minor,
+        cells,
+    })
 }
 
 #[cfg(test)]
