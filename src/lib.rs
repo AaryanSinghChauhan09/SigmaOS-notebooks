@@ -430,4 +430,64 @@ mod tests {
         let nb = parse_notebook(json).unwrap();
         assert_eq!(nb.code_source(), "s=\"a\nb\té\"");
     }
+
+    #[test]
+    fn test_parse_notebook_rejects_unknown_cell_type_aaa() {
+        // Arrange
+        let json =
+            r#"{"nbformat":4,"nbformat_minor":0,"cells":[{"cell_type":"unknown","source":"x"}]}"#;
+
+        // Act
+        let res = parse_notebook(json);
+
+        // Assert
+        assert!(matches!(res, Err(NotebookError::MalformedCell(_))));
+    }
+
+    #[test]
+    fn test_parse_notebook_counts_all_cell_types_and_lines_aaa() {
+        // Arrange
+        let json = r##"{"nbformat":4,"nbformat_minor":2,"cells":[
+            {"cell_type":"code","execution_count":1,"source":"a = 1\nb = 2"},
+            {"cell_type":"markdown","source":"# Header"},
+            {"cell_type":"raw","source":"raw\ntext"}
+        ]}"##;
+
+        // Act
+        let nb = parse_notebook(json).unwrap();
+
+        // Assert
+        assert_eq!(nb.counts(), (1, 1, 1));
+        assert_eq!(nb.line_count(), 5);
+        assert_eq!(nb.cells[0].execution_count, Some(1));
+    }
+
+    #[test]
+    fn test_parse_json_handles_unicode_escape_and_trailing_data_aaa() {
+        // Arrange
+        let valid = r#"{"text":"\u0041\u0042"}"#;
+        let trailing = r#"{"a":1} extra"#;
+
+        // Act
+        let parsed = parse_json(valid).unwrap();
+        let err = parse_json(trailing);
+
+        // Assert
+        assert_eq!(parsed.get("text").and_then(Json::as_str), Some("AB"));
+        assert!(matches!(err, Err(NotebookError::InvalidJson(_))));
+    }
+
+    #[test]
+    fn test_parse_notebook_handles_empty_cells_and_null_exec_count_aaa() {
+        // Arrange
+        let json = r#"{"nbformat":4,"nbformat_minor":5,"cells":[{"cell_type":"code","execution_count":null,"source":[]}]}"#;
+
+        // Act
+        let nb = parse_notebook(json).unwrap();
+
+        // Assert
+        assert_eq!(nb.cells.len(), 1);
+        assert_eq!(nb.cells[0].source, "");
+        assert_eq!(nb.cells[0].execution_count, None);
+    }
 }
